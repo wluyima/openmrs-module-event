@@ -44,23 +44,100 @@ public class HibernateEventInterceptor extends EmptyInterceptor {
 	private ThreadLocal<Stack<HashSet<OpenmrsObject>>> voidedObjects = new ThreadLocal<Stack<HashSet<OpenmrsObject>>>();
 	
 	private ThreadLocal<Stack<HashSet<OpenmrsObject>>> unvoidedObjects = new ThreadLocal<Stack<HashSet<OpenmrsObject>>>();
-
+	
+	// ======= Convenience accessor methods for the ThreadLocals that do the necessary initialization ===========
 	/**
-	 * @see org.hibernate.EmptyInterceptor#afterTransactionBegin(org.hibernate.Transaction)
+	 * @return the inserts
 	 */
-	@Override
-	public void afterTransactionBegin(Transaction tx) {
-
-        initializeIfNecessary();
-
-		inserts.get().push(new HashSet<OpenmrsObject>());
-		updates.get().push(new HashSet<OpenmrsObject>());
-		deletes.get().push(new HashSet<OpenmrsObject>());
-		retiredObjects.get().push(new HashSet<OpenmrsObject>());
-		unretiredObjects.get().push(new HashSet<OpenmrsObject>());
-		voidedObjects.get().push(new HashSet<OpenmrsObject>());
-		unvoidedObjects.get().push(new HashSet<OpenmrsObject>());
+	private ThreadLocal<Stack<HashSet<OpenmrsObject>>> getInserts() {
+		if (inserts.get() == null) {
+			inserts.set(new Stack<HashSet<OpenmrsObject>>());
+		}
+		if (inserts.get().isEmpty())
+			inserts.get().push(new HashSet<OpenmrsObject>());
+		
+		return inserts;
 	}
+	
+	/**
+	 * @return the updates
+	 */
+	private ThreadLocal<Stack<HashSet<OpenmrsObject>>> getUpdates() {
+		if (updates.get() == null) {
+			updates.set(new Stack<HashSet<OpenmrsObject>>());
+		}
+		if (updates.get().isEmpty())
+			updates.get().push(new HashSet<OpenmrsObject>());
+		
+		return updates;
+	}
+	
+	/**
+	 * @return the deletes
+	 */
+	private ThreadLocal<Stack<HashSet<OpenmrsObject>>> getDeletes() {
+		if (deletes.get() == null) {
+			deletes.set(new Stack<HashSet<OpenmrsObject>>());
+		}
+		if (deletes.get().isEmpty())
+			deletes.get().push(new HashSet<OpenmrsObject>());
+		
+		return deletes;
+	}
+	
+	/**
+	 * @return the retiredObjects
+	 */
+	private ThreadLocal<Stack<HashSet<OpenmrsObject>>> getRetiredObjects() {
+		if (retiredObjects.get() == null) {
+			retiredObjects.set(new Stack<HashSet<OpenmrsObject>>());
+		}
+		if (retiredObjects.get().isEmpty())
+			retiredObjects.get().push(new HashSet<OpenmrsObject>());
+		
+		return retiredObjects;
+	}
+	
+	/**
+	 * @return the unretiredObjects
+	 */
+	private ThreadLocal<Stack<HashSet<OpenmrsObject>>> getUnretiredObjects() {
+		if (unretiredObjects.get() == null) {
+			unretiredObjects.set(new Stack<HashSet<OpenmrsObject>>());
+		}
+		if (unretiredObjects.get().isEmpty())
+			unretiredObjects.get().push(new HashSet<OpenmrsObject>());
+		
+		return unretiredObjects;
+	}
+	
+	/**
+	 * @return the voidedObjects
+	 */
+	private ThreadLocal<Stack<HashSet<OpenmrsObject>>> getVoidedObjects() {
+		if (voidedObjects.get() == null) {
+			voidedObjects.set(new Stack<HashSet<OpenmrsObject>>());
+		}
+		if (voidedObjects.get().isEmpty())
+			voidedObjects.get().push(new HashSet<OpenmrsObject>());
+		
+		return voidedObjects;
+	}
+	
+	/**
+	 * @return the unvoidedObjects
+	 */
+	private ThreadLocal<Stack<HashSet<OpenmrsObject>>> getUnvoidedObjects() {
+		if (unvoidedObjects.get() == null) {
+			unvoidedObjects.set(new Stack<HashSet<OpenmrsObject>>());
+		}
+		if (unvoidedObjects.get().isEmpty())
+			unvoidedObjects.get().push(new HashSet<OpenmrsObject>());
+		
+		return unvoidedObjects;
+	}
+	
+	// ======= END Convenience accessor methods ===========
 	
 	/**
 	 * @see org.hibernate.EmptyInterceptor#onSave(java.lang.Object, java.io.Serializable,
@@ -69,7 +146,7 @@ public class HibernateEventInterceptor extends EmptyInterceptor {
 	@Override
 	public boolean onSave(Object entity, Serializable id, Object[] state, String[] propertyNames, Type[] types) {
 		if (entity instanceof OpenmrsObject) {
-			inserts.get().peek().add((OpenmrsObject) entity);
+			getInserts().get().peek().add((OpenmrsObject) entity);
 		}
 		
 		//tells hibernate that there are no changes made here that 
@@ -87,7 +164,7 @@ public class HibernateEventInterceptor extends EmptyInterceptor {
 		
 		if (entity instanceof OpenmrsObject) {
 			OpenmrsObject object = (OpenmrsObject) entity;
-			updates.get().peek().add(object);
+			getUpdates().get().peek().add(object);
 			//Fire events for retired/unretired and voided/unvoided objects
 			if (entity instanceof Retireable || entity instanceof Voidable) {
 				for (int i = 0; i < propertyNames.length; i++) {
@@ -104,14 +181,14 @@ public class HibernateEventInterceptor extends EmptyInterceptor {
 						if (previousValue != currentValue) {
 							if ("retired".equals(auditableProperty)) {
 								if (previousValue)
-									unretiredObjects.get().peek().add(object);
+									getUnretiredObjects().get().peek().add(object);
 								else
-									retiredObjects.get().peek().add(object);
+									getRetiredObjects().get().peek().add(object);
 							} else {
 								if (previousValue)
-									unvoidedObjects.get().peek().add(object);
+									getUnvoidedObjects().get().peek().add(object);
 								else
-									voidedObjects.get().peek().add(object);
+									getVoidedObjects().get().peek().add(object);
 							}
 						}
 						
@@ -131,7 +208,7 @@ public class HibernateEventInterceptor extends EmptyInterceptor {
 	@Override
 	public void onDelete(Object entity, Serializable id, Object[] state, String[] propertyNames, Type[] types) {
 		if (entity instanceof OpenmrsObject) {
-			deletes.get().peek().add((OpenmrsObject) entity);
+			getDeletes().get().peek().add((OpenmrsObject) entity);
 		}
 	}
 	
@@ -145,7 +222,7 @@ public class HibernateEventInterceptor extends EmptyInterceptor {
 			//If a collection element has been added/removed, fire an update event for the parent entity
 			Object owningObject = ((PersistentCollection) collection).getOwner();
 			if (owningObject instanceof OpenmrsObject) {
-				updates.get().peek().add((OpenmrsObject) owningObject);
+				getUpdates().get().peek().add((OpenmrsObject) owningObject);
 			}
 		}
 	}
@@ -158,63 +235,51 @@ public class HibernateEventInterceptor extends EmptyInterceptor {
 		
 		try {
 			if (tx.wasCommitted()) {
-				for (OpenmrsObject delete : deletes.get().peek()) {
+				for (OpenmrsObject delete : getDeletes().get().peek()) {
 					Event.fireAction(Action.PURGED.name(), delete);
 				}
-				for (OpenmrsObject insert : inserts.get().peek()) {
+				for (OpenmrsObject insert : getInserts().get().peek()) {
 					Event.fireAction(Action.CREATED.name(), insert);
 				}
-				for (OpenmrsObject update : updates.get().peek()) {
+				for (OpenmrsObject update : getUpdates().get().peek()) {
 					Event.fireAction(Action.UPDATED.name(), update);
 				}
-				for (OpenmrsObject retired : retiredObjects.get().peek()) {
+				for (OpenmrsObject retired : getRetiredObjects().get().peek()) {
 					Event.fireAction(Action.RETIRED.name(), retired);
 				}
-				for (OpenmrsObject unretired : unretiredObjects.get().peek()) {
+				for (OpenmrsObject unretired : getUnretiredObjects().get().peek()) {
 					Event.fireAction(Action.UNRETIRED.name(), unretired);
 				}
-				for (OpenmrsObject voided : voidedObjects.get().peek()) {
+				for (OpenmrsObject voided : getVoidedObjects().get().peek()) {
 					Event.fireAction(Action.VOIDED.name(), voided);
 				}
-				for (OpenmrsObject unvoided : unvoidedObjects.get().peek()) {
+				for (OpenmrsObject unvoided : getUnvoidedObjects().get().peek()) {
 					Event.fireAction(Action.UNVOIDED.name(), unvoided);
 				}
 			}
 		}
 		finally {
-			//cleanup
-			inserts.get().pop();
-			updates.get().pop();
-			deletes.get().pop();
-			retiredObjects.get().pop();
-			unretiredObjects.get().pop();
-			voidedObjects.get().pop();
-			unvoidedObjects.get().pop();
+			//cleanup if necessary
+			if (inserts.get() != null && !inserts.get().isEmpty())
+				inserts.get().pop();
+			
+			if (updates.get() != null && !updates.get().isEmpty())
+				updates.get().pop();
+			
+			if (deletes.get() != null && !deletes.get().isEmpty())
+				deletes.get().pop();
+			
+			if (retiredObjects.get() != null && !retiredObjects.get().isEmpty())
+				retiredObjects.get().pop();
+			
+			if (unretiredObjects.get() != null && !unretiredObjects.get().isEmpty())
+				unretiredObjects.get().pop();
+			
+			if (voidedObjects.get() != null && !voidedObjects.get().isEmpty())
+				voidedObjects.get().pop();
+			
+			if (unvoidedObjects.get() != null && !unvoidedObjects.get().isEmpty())
+				unvoidedObjects.get().pop();
 		}
 	}
-
-    private void initializeIfNecessary() {
-
-        if (inserts.get() == null) {
-            inserts.set(new Stack<HashSet<OpenmrsObject>>());
-        }
-        if (updates.get() == null) {
-            updates.set(new Stack<HashSet<OpenmrsObject>>());
-        }
-        if (deletes.get() == null) {
-            deletes.set(new Stack<HashSet<OpenmrsObject>>());
-        }
-        if (retiredObjects.get() == null) {
-            retiredObjects.set(new Stack<HashSet<OpenmrsObject>>());
-        }
-        if (unretiredObjects.get() == null) {
-            unretiredObjects.set(new Stack<HashSet<OpenmrsObject>>());
-        }
-        if (voidedObjects.get() == null) {
-            voidedObjects.set(new Stack<HashSet<OpenmrsObject>>());
-        }
-        if (unvoidedObjects.get() == null) {
-            unvoidedObjects.set(new Stack<HashSet<OpenmrsObject>>());
-        }
-    }
 }

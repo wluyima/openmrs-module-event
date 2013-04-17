@@ -26,25 +26,22 @@ public class UpdateItemInterceptor extends EmptyInterceptor {
 	//needs to use it has to enabled it explicitly via this field
 	public static boolean isEnabled = false;
 	
-	public static boolean skip = false;
-	
 	/**
 	 * @see org.hibernate.EmptyInterceptor#afterTransactionCompletion(org.hibernate.Transaction)
 	 */
 	@Override
 	public void afterTransactionCompletion(Transaction tx) {
-		if (isEnabled && !skip) {
-			System.out.println("-> In test interceptor...");
+		if (isEnabled) {
 			try {
 				EncounterService es = Context.getEncounterService();
 				EncounterType et = es.getEncounterType(ENCOUNTER_TYPE_ID);
 				et.setName(NEW_ENCOUNTER_NAME);
-				skip = true;//we need to avoid going in a loop
+				isEnabled = false;//we need to avoid going in a loop
 				es.saveEncounterType(et);
 				tx.commit();
 			}
 			finally {
-				skip = false;
+				isEnabled = true;
 			}
 		}
 	}
