@@ -30,11 +30,15 @@ import org.openmrs.event.Event;
 import org.openmrs.event.EventEngine;
 import org.openmrs.event.EventEngineUtil;
 import org.openmrs.event.MockEventListener;
+import org.openmrs.event.api.db.hibernate.HibernateEventInterceptor;
+import org.openmrs.event.api.db.hibernate.UpdateItemInterceptor;
 import org.openmrs.test.BaseModuleContextSensitiveTest;
 import org.springframework.test.annotation.NotTransactional;
 
 @SuppressWarnings("deprecation")
 public class EventBehaviorTest extends BaseModuleContextSensitiveTest {
+	
+	public static final String TEST_INTERCEPTOR_BEAN_ID = "testInterceptor";
 	
 	private static EventEngine eventEngine;
 	
@@ -226,5 +230,28 @@ public class EventBehaviorTest extends BaseModuleContextSensitiveTest {
 		pId.setVoided(false);
 		ps.savePatientIdentifier(pId);
 		verify(eventEngine).fireAction(Event.Action.UNVOIDED.name(), pId);
+	}
+	
+	@Test
+	@NotTransactional
+	public void shouldFireEventsWhenAnOperationIsDoneByAnotherIntercerLaterInTheChain() throws Exception {
+		String beanId = applicationContext.getBeanNamesForType(HibernateEventInterceptor.class)[0];
+		//The test interceptor should come after the event interceptor for the test be concrete
+		Assert.assertTrue(beanId.compareTo(TEST_INTERCEPTOR_BEAN_ID) < 0);
+		
+		EncounterService es = Context.getEncounterService();
+		EncounterType typeToEdit = es.getEncounterType(UpdateItemInterceptor.ENCOUNTER_TYPE_ID);
+		EncounterType newType = new EncounterType("new type", "some random description");
+		UpdateItemInterceptor.isEnabled = true;
+		try {
+			es.saveEncounterType(newType);
+			verify(eventEngine).fireAction(Event.Action.CREATED.name(), newType);
+			
+			Assert.assertEquals(UpdateItemInterceptor.NEW_ENCOUNTER_NAME, typeToEdit.getName());
+			verify(eventEngine).fireAction(Event.Action.UPDATED.name(), typeToEdit);
+		}
+		finally {
+			UpdateItemInterceptor.isEnabled = false;
+		}
 	}
 }
